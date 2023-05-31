@@ -1,1 +1,120 @@
+## What are the Major Themes in the New Kubernetes 1.27 aka “Chill Vibes”?
+
+CNCF has recently released Kubernetes 1.27. According to the CNCF:
+There are 60 enhancements in Kubernetes 1.27. These are as follows:
+1. Alpha: 18
+2. Beta: 29
+3. Stable: 13
+
+In this post, I will highlight Kubernetes v1.27 Major Themes; what they are, and which problems they intend to solve. This is an easy-to-read guide meant to help individuals interested in learning Kubernetes and individuals who are currently using Kubernetes for their workloads.
+
+k8s.gcr.io image registry freeze
+
+enhancement status [stable]
+
+Kubernetes image registry, k8s.gcr.io, was frozen in April 2023, and replaced by a new registry, registry.k8s.io.
+
+k8s.gcr.io is hosted on a Google Container Registry (GCR) domain solely for Kubernetes. While Google has been providing these resources since the beginning of the project, other cloud providers and vendors want to host images for a better user experience. Google donated $3 million to support the project’s infrastructure and Amazon Web Services announced a matching donation at Kubecon NA 2022. This will improve user experience with faster downloads and lower egress bandwidth costs.
+
+All images found on k8s.gcr.io will be affected by this change. They are now going to be available on registry.k8s.io. Contributors and end users who use k8s.gcr.io must update their manifests to point to registry.k8s.io.
+
+You can easily confirm if your cluster has k8s.gcr.io dependencies using the following command:
+
+kubectl get pods --all-namespaces -o jsonpath="{.items[*].spec.containers[*].image}" |\
+tr -s '[[:space:]]' '\n' |\
+sort |\
+uniq -c
+SeccompDefault
+
+Enhancement status [stable]
+
+When SeccompDefault is enabled and accompanied settings are performed, Kubelet will use the RuntimeDefault profile defined by the container runtime.
+
+Seccomp, which restricts system calls from process userspace into the kernel is disabled in Kubernetes by default. Kubernetes lets you load the seccomp profiles to Pods and containers on nodes automatically. When a Pod doesn’t define a specific profile, Kubernetes 1.27 lets you configure the seccomp profile that applies. To use seccompDefault, run the kubelet with the — seccomp-default command line flag. Alternatively, enable it through the kubelet configuration file.
+
+It is important to note default seccomp profile may differ based on the container runtime installed, their releases, and or infrastructure used.
+
+Mutable Scheduling Directive for Jobs
+
+Enhancement status [stable]
+
+This feature allows updating a Job’s scheduling directive before it starts.
+
+Suspend feature enables a custom queue to decide when a job should start. However, once a job is unsuspended, a custom queue controller does not influence where the pods of a job will be assigned. In parallel jobs, there is a need for pods to run within specific constraints such as all in the same zone, or all either on GPU model x or y, but not a mix of both. This feature gives custom queue controllers the ability to influence pod placement whilst allowing the kube-scheduler to manage the pod-to-node placement.
+
+The fields in a Job’s pod template that can be updated are node affinity, node selector, tolerations, labels, annotations, and scheduling gates.
+
+DownwardAPIHugePages
+
+Enhancement status [stable]
+
+Enables applications to consume hugepages information using downward API.
+
+The downward API allows containers to consume information about themselves or the cluster without using the Kubernetes client or API server. Using this feature, containers can consume hugepages information (limit and request) using limit.hugepages and request.hugepages as resourceFieldRef in downward API.
+
+Pod Scheduling Readiness
+
+Enhancement status [beta]
+
+It is now possible to control when a pod is ready to be scheduled by simply specifying/removing Pod’s .spec.schedulingGates during pod creation.
+
+In the past, Pods were deemed ready for scheduling as soon as they were created. The Kubernetes scheduler would then search for suitable nodes to deploy all the pending Pods. However, in practical scenarios, certain Pods could remain in a state of “essential resource missing” for extended periods. Such Pods could needlessly burden the scheduler, thereby causing unnecessary churn.
+
+Node Log Access Through Kubernetes API
+
+Enhancement status [alpha]
+
+This feature allows querying logs from a node by just using Kubernetes API, i.e. kubectl command.
+
+When cluster administrators encounter problems with malfunctioning services running on a node, they often have to resort to SSH or RDP access to the node in order to diagnose the problem through log analysis. However, the Node log query feature resolves this issue by enabling cluster administrators to view logs through kubectl. This feature is particularly beneficial for Windows nodes where issues may arise such as the node transitioning to the ready state, but containers failing to come up due to CNI misconfigurations and other problems that are difficult to identify by merely examining the Pod status.
+
+In order to utilize this functionality, the NodeLogQuery feature gate must be activated, and both the enableSystemLogHandler and enableSystemLogQuery configuration options must be defined in the kubelet configuration for every node.
+
+To query logs from node, use:
+
+kubectl get --raw "/api/v1/nodes/node01/proxy/logs/?query=kubelet" ## where node01 is the name of the node under investigation
+ReadWriteOncePod PersistentVolume Access Mode
+
+Enhancement status [beta]
+
+This feature allows you to restrict volume access so that only a single Pod in the cluster has write access at any given time.
+
+In Kubernetes 1.27, higher-priority pods are granted the ability to displace lower-priority pods on a node. As a result, pods that use ReadWriteOncePod PVCs can be displaced in the event that a higher-priority pod requires the same PVC.
+
+Respect PodTopologySpread After Rolling Upgrades
+
+Enhancement status [beta]
+
+PodTopologySpread enables more precise regulation of how evenly related Pods are distributed across nodes. Nevertheless, during the deployment of a new set of Pods, the current Pods — which will soon be phased out — are taken into consideration in the calculations, potentially resulting in an uneven distribution of future Pods.
+
+This improvement introduces greater flexibility by way of a new field in the Pod specification and an updated calculation algorithm. The enhancement enables the inclusion of arbitrary labels in the definition of Pods, providing the controller with greater control over the creation of precise sets of Pods prior to calculating the distribution.
+
+Faster SELinux Volume Relabeling Using Mounts
+
+Enhancement status [beta]
+
+This functionality accelerates container startup by mounting volumes with the appropriate SELinux label instead of recursively updating every file on the volume.
+
+In Linux systems that feature Security-Enhanced Linux (SELinux), it is customary for the container runtime to apply SELinux labels to all volumes associated with a Pod. While Kubernetes only transfers the SELinux label from the securityContext fields of a Pod to the container runtime, it is the latter that recursively modifies the SELinux label on all files visible to the Pod’s containers. This process can be prolonged in instances where there are numerous files on the volume, particularly when the volume is located on a remote file system. The Faster SELinux Volume Relabeling Using Mounts is meant to fix these shortfalls.
+
+Robust VolumeManager Reconstruction
+
+Enhancement status [beta]
+
+This enhancement involves a refactoring of the volume manager to enable the kubelet to populate supplementary information on how existing volumes are mounted during its startup process.
+
+The feature is meant to make volume cleanup more robust. To use this enhancement, enable the NewVolumeManagerReconstruction feature gate on a node.
+
+Mutable Pod Scheduling Directives
+
+Enhancement status [beta]
+
+With this feature, you are able to update the node affinity, node selector, tolerations, labels, and annotations fields in a Job’s pod template before it starts.
+
+This feature enables the mutation of a Pod that is hindered by scheduling readiness gates. This empowers external resource controllers to influence the placement of Pods while still enabling the kube-scheduler to perform the critical function of assigning Pods to nodes.
+
+Conclusion
+
+In this post, I highlighted Major Themes in Kubernetes v1.27. There are many more improvements in this release. They are listed on the CNCF website. For further information regarding the features listed in this post, kindly reach out to me through a comment section.
+
 
